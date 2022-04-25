@@ -5,40 +5,98 @@ from aimacode.utils import expr
 
 from layers import BaseActionLayer, BaseLiteralLayer, makeNoOp, make_node
 
+import itertools
 
 class ActionLayer(BaseActionLayer):
 
     def _inconsistent_effects(self, actionA, actionB):
         """ Return True if an effect of one action negates an effect of the other
 
+        Hints:
+            (1) `~Literal` can be used to logically negate a literal
+            (2) `self.children` contains a map from actions to effects
+
         See Also
         --------
         layers.ActionNode
+        
+        Inconsistent effects: one action negates an effect of the other. For example Eat(Cake)
+        and the persistence of Have(Cake) have inconsistent effects because they disagree on
+        the effect Have(Cake).
+
         """
         # TODO: implement this function
-        raise NotImplementedError
+        effectsA = self.children[actionA]
+        effectsB = self.children[actionB]
+        
+        for effect in effectsA:
+            neg = ~effect
+            if neg in effectsB:
+                return True
+        return False
 
 
     def _interference(self, actionA, actionB):
         """ Return True if the effects of either action negate the preconditions of the other 
+
+        Hints:
+            (1) `~Literal` can be used to logically negate a literal
+            (2) `self.parents` contains a map from actions to preconditions
         
         See Also
         --------
         layers.ActionNode
+        
+         Interference: one of the effects of one action is the negation of a precondition of the
+        other. For example Eat(Cake) interferes with the persistence of Have(Cake) by negating its precondition.
         """
         # TODO: implement this function
-        raise NotImplementedError
+        
+        precondsA = self.parents[actionA]
+        effectsA = self.children[actionA]
+        precondsB = self.parents[actionB]
+        effectsB = self.children[actionB]
+        
+        for effect in effectsA:
+            neg = ~effect
+            if neg in precondsB:
+                return True
+            
+        for effect in effectsB:
+            neg = ~effect
+            if neg in precondsA:
+                return True
+        
+        return False
 
     def _competing_needs(self, actionA, actionB):
-        """ Return True if the preconditions of the actions are all pairwise mutex in the parent layer 
+        """ Return True if any preconditions of the two actions are pairwise mutex in the parent layer
+
+        Hints:
+            (1) `self.parent_layer` contains a reference to the previous literal layer
+            (2) `self.parents` contains a map from actions to preconditions
         
         See Also
         --------
         layers.ActionNode
         layers.BaseLayer.parent_layer
+        
+        Competing needs: one of the preconditions of one action is mutually exclusive with a
+        precondition of the other. For example, Bake(Cake) and Eat(Cake) are mutex because
+        they compete on the value of the Have(Cake) precondition.
+
         """
         # TODO: implement this function
-        raise NotImplementedError
+        
+        precondsA = self.parents[actionA]
+        precondsB = self.parents[actionB]
+        
+        
+        for precondA, precondB in itertools.product(precondsA, precondsB):
+            if self.parent_layer.is_mutex(precondA, precondB):
+                return True
+        
+        return False
 
 
 class LiteralLayer(BaseLiteralLayer):
@@ -46,18 +104,37 @@ class LiteralLayer(BaseLiteralLayer):
     def _inconsistent_support(self, literalA, literalB):
         """ Return True if all ways to achieve both literals are pairwise mutex in the parent layer
 
+        Hints:
+            (1) `self.parent_layer` contains a reference to the previous action layer
+            (2) `self.parents` contains a map from literals to actions in the parent layer
+
         See Also
         --------
         layers.BaseLayer.parent_layer
         """
         # TODO: implement this function
-        raise NotImplementedError
+#         print(literalA, literalB)
+#         print("inconsistent", self.parents)
+#         raise NotImplementedError
+        
+        literalAActions = [action for action in self.parent_layer.children if literalA in action.effects]
+        literalBActions = [action for action in self.parent_layer.children if literalB in action.effects]
+        
+        if not literalAActions and not literalBActions:
+            return False
+        
+        for actionA,actionB in itertools.product(literalAActions,literalBActions):
+            if not self.parent_layer.is_mutex(actionA, actionB):
+                return False
+           
+        return True
 
     def _negation(self, literalA, literalB):
         """ Return True if two literals are negations of each other """
         # TODO: implement this function
-        raise NotImplementedError
-
+#         print(literalA, literalB)
+#         raise NotImplementedError
+        return literalA == ~literalB
 
 class PlanningGraph:
     def __init__(self, problem, state, serialize=True, ignore_mutexes=False):
@@ -94,6 +171,11 @@ class PlanningGraph:
         self.literal_layers = [layer]
         self.action_layers = []
 
+    def level_cost(self, goal):
+        for i, layer in enumerate(self.literal_layers):
+            if goal in layer:
+                return i
+        
     def h_levelsum(self):
         """ Calculate the level sum heuristic for the planning graph
 
@@ -103,19 +185,31 @@ class PlanningGraph:
         that the level cost is **NOT** the minimum number of actions to
         achieve a single goal literal.
         
-        For example, if Goal1 first appears in level 0 of the graph (i.e.,
-        it is satisfied at the root of the planning graph) and Goal2 first
+        For example, if Goal_1 first appears in level 0 of the graph (i.e.,
+        it is satisfied at the root of the planning graph) and Goal_2 first
         appears in level 3, then the levelsum is 0 + 3 = 3.
 
-        Hint: expand the graph one level at a time and accumulate the level
-        cost of each goal.
+        Hints
+        -----
+          (1) See the pseudocode folder for help on a simple implementation
+          (2) You can implement this function more efficiently than the
+              sample pseudocode if you expand the graph one level at a time
+              and accumulate the level cost of each goal rather than filling
+              the whole graph at the start.
 
         See Also
         --------
         Russell-Norvig 10.3.1 (3rd Edition)
         """
         # TODO: implement this function
-        raise NotImplementedError
+        
+        costs = []
+        self.fill()
+        
+        for goal in self.goal:
+            costs.append(self.level_cost(goal))
+        
+        return sum(costs)
 
     def h_maxlevel(self):
         """ Calculate the max level heuristic for the planning graph
@@ -129,7 +223,12 @@ class PlanningGraph:
         For example, if Goal1 first appears in level 1 of the graph and
         Goal2 first appears in level 3, then the levelsum is max(1, 3) = 3.
 
-        Hint: expand the graph one level at a time until all goals are met.
+        Hints
+        -----
+          (1) See the pseudocode folder for help on a simple implementation
+          (2) You can implement this function more efficiently if you expand
+              the graph one level at a time until the last goal is met rather
+              than filling the whole graph at the start.
 
         See Also
         --------
@@ -140,7 +239,13 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic with A*
         """
         # TODO: implement maxlevel heuristic
-        raise NotImplementedError
+        costs = []
+        self.fill()
+        
+        for goal in self.goal:
+            costs.append(self.level_cost(goal))
+        
+        return max(costs)
 
     def h_setlevel(self):
         """ Calculate the set level heuristic for the planning graph
@@ -149,7 +254,12 @@ class PlanningGraph:
         appear such that no pair of goal literals are mutex in the last
         layer of the planning graph.
 
-        Hint: expand the graph one level at a time until you find the set level
+        Hints
+        -----
+          (1) See the pseudocode folder for help on a simple implementation
+          (2) You can implement this function more efficiently if you expand
+              the graph one level at a time until you find the set level rather
+              than filling the whole graph at the start.
 
         See Also
         --------
@@ -160,7 +270,19 @@ class PlanningGraph:
         WARNING: you should expect long runtimes using this heuristic on complex problems
         """
         # TODO: implement setlevel heuristic
-        raise NotImplementedError
+        
+        self.fill()
+        
+        for i, layer in enumerate(self.literal_layers):
+            allGoalsMet = all([goal in layer for goal in self.goal])
+            
+            if not allGoalsMet:
+                continue
+            
+            goalsAreMutex = any([layer.is_mutex(goalA, goalB) for goalA, goalB in itertools.product(self.goal, self.goal)])
+            
+            if not goalsAreMutex:
+                return i
 
     ##############################################################################
     #                     DO NOT MODIFY CODE BELOW THIS LINE                     #
