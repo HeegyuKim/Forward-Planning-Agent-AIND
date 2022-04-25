@@ -1,0 +1,18 @@
+[
+    {
+        "description": "1. get_action() calls self.queue.put() at least once before timeout",
+        "advice": "",
+        "traceback": "Traceback (most recent call last):\n  File \"/home/grader/adversarial_search/__utils.py\", line 202, in test\n    test_fn(*args, **kwargs)\n  File \"/home/grader/adversarial_search/__utils.py\", line 73, in test\n    test_fn(*args, **kwargs)\n  File \"/home/grader/adversarial_search/__utils.py\", line 354, in func_wrapper\n    return func(self)\n  File \"/home/grader/adversarial_search/tests/test_my_custom_player.py\", line 44, in test_get_action\n    self._get_action_player2()\n  File \"/home/grader/adversarial_search/tests/test_my_custom_player.py\", line 54, in _get_action_player2\n    self._test_on_state(self.move_1_state)\n  File \"/home/grader/adversarial_search/tests/test_my_custom_player.py\", line 71, in _test_on_state\n    \"\"\").format(self.time_limit, state))\nAssertionError: False is not true : Your agent did not call self.queue.put() with a valid action             within 150 milliseconds from state Isolation(board=41523161203939121938568444148443135, ply_count=1, locs=(57, None))\n\n",
+        "result": "F",
+        "message": "False is not true : Your agent did not call self.queue.put() with a valid action             within 150 milliseconds from state Isolation(board=41523161203939121938568444148443135, ply_count=1, locs=(57, None))\n",
+        "rubric_item_id": "11286"
+    },
+    {
+        "description": "2. CustomPlayer successfully completes a game against itself",
+        "advice": "",
+        "traceback": "",
+        "result": ".",
+        "message": "",
+        "rubric_item_id": "11287"
+    }
+]
